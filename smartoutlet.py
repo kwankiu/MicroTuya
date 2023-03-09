@@ -6,13 +6,16 @@ import ubinascii
 import json
 import logging
 import socket
+import binascii
 
 log = logging.getLogger(__name__)
 logging.basicConfig()
 clock = RTC()
 
 SET = 'set'
-PROTOCOL_VERSION_BYTES = b'3.1'
+STATUS = 'status' # modified for 3.3 support
+PROTOCOL_VERSION_BYTES_31 = b'3.1' # modified for 3.3 support
+PROTOCOL_VERSION_BYTES_33 = b'3.3' # modified for 3.3 support
 
 # This is intended to match requests.json payload
 # at https://github.com/codetheweb/tuyapi
@@ -47,15 +50,21 @@ class AESCipher():
         self.bs = 16
         self.key = key
 
-    def encrypt(self, raw):
+    def encrypt(self, raw, use_base64 = True):
         raw = self._pad(raw)
         cipher = maes.new(self.key, maes.MODE_ECB)
         crypted_text = cipher.encrypt(raw)
         crypted_text_b64 = ubinascii.b2a_base64(crypted_text)
-        return crypted_text_b64
+        # modified for 3.3 support
+        if use_base64:
+            return crypted_text_b64
+        else:
+            return crypted_text
 
-    def decrypt(self, enc):
-        enc = ubinascii.a2b_base64(enc)
+    def decrypt(self, enc, use_base64=True):
+        # modified for 3.3 support
+        if use_base64:
+            enc = ubinascii.a2b_base64(enc)
         cipher = maes.new(self.key, maes.MODE_ECB)
         raw = cipher.decrypt(enc)
         return self._unpad(raw).decode('utf-8')
@@ -91,6 +100,7 @@ class TuyaDevice(object):
         self.local_key = local_key.encode('latin1')
         self.dev_type = dev_type
         self.connection_timeout = connection_timeout
+        self.version = 3.1 # modified for 3.3 support
 
         self.port = 6668  # default - do not expect caller to pass in
 
@@ -112,6 +122,10 @@ class TuyaDevice(object):
         s.close()
         return data
 
+    # added for 3.3 support
+    def set_version(self, version):
+        self.version = version
+        
     def generate_payload(self, command, data=None):
         """
         Generate the payload to send.
@@ -142,17 +156,25 @@ class TuyaDevice(object):
         json_payload = json_payload.replace(' ', '')  # if spaces are not removed device does not respond!
         json_payload = json_payload.encode('utf-8')
         log.debug('json_payload=%r', json_payload)
-
-        if command == SET:
+            
+        # modified for 3.3 support
+        if self.version == 3.3:
+            self.cipher = AESCipher(self.local_key)  # expect to connect and then disconnect to set new
+            json_payload = self.cipher.encrypt(json_payload, False)
+            self.cipher = None
+            if command != STATUS:
+                # add the 3.3 header
+                json_payload = PROTOCOL_VERSION_BYTES_33 + b"\0\0\0\0\0\0\0\0\0\0\0\0" + json_payload
+        elif command == SET:
             # need to encrypt
             self.cipher = AESCipher(self.local_key)  # expect to connect and then disconnect to set new
             json_payload = self.cipher.encrypt(json_payload)
-            preMd5String = b'data=' + json_payload + b'||lpv=' + PROTOCOL_VERSION_BYTES + b'||' + self.local_key
+            preMd5String = b'data=' + json_payload + b'||lpv=' + PROTOCOL_VERSION_BYTES_31 + b'||' + self.local_key # modified for 3.3 support
             m = md5()
             m.update(preMd5String)
             hexdigest = m.hexdigest()
 
-            json_payload = PROTOCOL_VERSION_BYTES + hexdigest[8:][:16].encode('latin1') + json_payload
+            json_payload = PROTOCOL_VERSION_BYTES_31 + hexdigest[8:][:16].encode('latin1') + json_payload # modified for 3.3 support
 
             self.cipher = None  # expect to connect and then disconnect to set new
 
@@ -164,8 +186,18 @@ class TuyaDevice(object):
                           payload_dict[self.dev_type][command]['hexByte'] +
                           '000000' +
                           postfix_payload_hex_len ) + postfix_payload
+        
+         # calc the CRC of everything except where the CRC goes and the suffix, modified for 3.3 support
+        #hex_crc = format(binascii.crc32(buffer[:-8]) & 0xffffffff, '08X')
+        hex_crc = binascii.crc32(buffer[:-8]) & 0xffffffff
+        hex_str = hex(hex_crc)[2:].upper()
+        if len(hex_str) < 8:
+            hex_str = '0' * (8 - len(hex_str)) + hex_str
+        hex_crc = hex_str
+        #print(hex_crc) #debug only
+        
+        buffer = buffer[:-8] + hex2bin(hex_crc) + buffer[-4:]
         return buffer
-
 
 
 class GenericDevice(TuyaDevice):
@@ -188,14 +220,22 @@ class GenericDevice(TuyaDevice):
             if not isinstance(result, str):
                 result = result.decode()
             result = json.loads(result)
-        elif result.startswith(PROTOCOL_VERSION_BYTES):
+        elif result.startswith(PROTOCOL_VERSION_BYTES_31): # modified for 3.3 support
             # got an encrypted payload, happens occasionally
             # expect resulting json to look similar to:: {"devId":"ID","dps":{"1":true,"2":0},"t":EPOCH_SECS,"s":3_DIGIT_NUM}
             # NOTE dps.2 may or may not be present
-            result = result[len(PROTOCOL_VERSION_BYTES):]  # remove version header
+            result = result[len(PROTOCOL_VERSION_BYTES_31):]  # remove version header, modified for 3.3 support
             result = result[16:]  # remove (what I'm guessing, but not confirmed is) 16-bytes of MD5 hexdigest of payload
             cipher = AESCipher(self.local_key)
             result = cipher.decrypt(result)
+            log.debug('decrypted result=%r', result)
+            if not isinstance(result, str):
+                result = result.decode()
+            result = json.loads(result)
+        # added for 3.3 support
+        elif self.version == 3.3: 
+            cipher = AESCipher(self.local_key)
+            result = cipher.decrypt(result, False)
             log.debug('decrypted result=%r', result)
             if not isinstance(result, str):
                 result = result.decode()
