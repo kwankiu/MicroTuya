@@ -1,4 +1,4 @@
-from smartoutlet import OutletDevice
+from MicroTuya import OutletDevice
 
 # wi-fi settings
 ssid_ = ""
