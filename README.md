@@ -1,10 +1,10 @@
 # MicroTuya
-Controlling Tuya based smart devices using MicroPython
+Controlling Tuya smart devices using MicroPython locally over LAN
 
 # Status
 - Currently only support ESP32 (Please report to me if you found it working on another device, so that i can add it here)
 - Tested to work with ESP32-C3 
-- Tested to be able to control Smart Plug and Smart Power Strip from Globe (Should works on any Tuya based devices)
+- Tested to be able to control Smart Plug and Smart Power Strip from Globe (Should works on other Tuya devices that use WiFi)
 
 # Usage
 
