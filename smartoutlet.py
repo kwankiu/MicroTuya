@@ -6,7 +6,6 @@ import ubinascii
 import json
 import logging
 import socket
-import binascii
 
 log = logging.getLogger(__name__)
 logging.basicConfig()
@@ -189,7 +188,7 @@ class TuyaDevice(object):
         
          # calc the CRC of everything except where the CRC goes and the suffix, modified for 3.3 support
         #hex_crc = format(binascii.crc32(buffer[:-8]) & 0xffffffff, '08X')
-        hex_crc = binascii.crc32(buffer[:-8]) & 0xffffffff
+        hex_crc = ubinascii.crc32(buffer[:-8]) & 0xffffffff
         hex_str = hex(hex_crc)[2:].upper()
         if len(hex_str) < 8:
             hex_str = '0' * (8 - len(hex_str)) + hex_str
