@@ -18,7 +18,35 @@ NOTE : You must first have your Tuya device setup with Smart Life App or Tuya Sm
 
 ## 2. Copy multi-device-from-json.py and devices.json to your MicroPython parent directory.
 
-## 3. Let's open devices.json and see what we have.
+## 3. Setup and Connect our MicroPython device to WiFi
+
+Add the following code to your `boot.py` (if boot.py does not exist, create a file named boot.py)
+
+```
+import network
+
+ssid = 'YOUR_SSID'
+password = 'YOUR_PASSWORD'
+
+station = network.WLAN(network.STA_IF)
+
+station.active(True)
+station.connect(ssid, password)
+
+while station.isconnected() == False:
+  pass
+
+print('Connection successful')
+print(station.ifconfig())
+```
+
+Dont forget to define WiFi SSID and Password by modifying this two line:
+```
+ssid = 'YOUR_SSID'
+password = 'YOUR_PASSWORD'
+```
+
+## 4. Let's open devices.json and see what we have.
 
 NOTE :
 
@@ -103,33 +131,33 @@ NOTE : You must first have your Tuya device setup with Smart Life App or Tuya Sm
 from MicroTuya import OutletDevice
 ```
 
-## 3. Setup WiFi for our MicroPython device
+## 3. Setup and Connect our MicroPython device to WiFi
 
-First, we can define a function do_connect() which connect our device to WiFi :
-```
-def do_connect():
-    import network
-    sta_if = network.WLAN(network.STA_IF)
-    if not sta_if.isconnected():
-        print('Connecting to network...')
-        sta_if.active(True)
-        sta_if.connect(wifi_ssid, wifi_password)
-        while not sta_if.isconnected():
-            pass
-    print('Network configured as follow:', sta_if.ifconfig())
-```
+Add the following code to your `boot.py` (if boot.py does not exist, create a file named boot.py)
 
-Dont forget to define wifi_ssid and wifi_password:
 ```
-wifi_ssid = 'YOUR SSID'
-wifi_password = 'YOUR_PASSWORD'
-```
+import network
 
-Now, run do_connect() in your main program :
-```
-do_connect()
+ssid = 'YOUR_SSID'
+password = 'YOUR_PASSWORD'
+
+station = network.WLAN(network.STA_IF)
+
+station.active(True)
+station.connect(ssid, password)
+
+while station.isconnected() == False:
+  pass
+
+print('Connection successful')
+print(station.ifconfig())
 ```
 
+Dont forget to define WiFi SSID and Password by modifying this two line:
+```
+ssid = 'YOUR_SSID'
+password = 'YOUR_PASSWORD'
+```
 
 ## 4. Add a device. 
 
